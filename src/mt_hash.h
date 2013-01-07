@@ -2,6 +2,7 @@
 #define MT_HASH_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "mt_string.h"
 
@@ -20,6 +21,8 @@ void mt_hash_insert(MtHash* hash, MtString* key, void* value);
 bool mt_hash_contains_key(MtHash* hash, MtString* key);
 
 void* mt_hash_search(MtHash* hash, MtString* key);
+
+void mt_hash_remove(MtHash* hash, MtString* key);
 
 void mt_hash_clear(MtHash* hash);
 void mt_hash_free(MtHash* hash);
