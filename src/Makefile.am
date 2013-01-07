@@ -20,4 +20,5 @@ mt_queue.c \
 mtr.c \
 mt_config.c \
 mt_stack.c \
-mt_output.c
+mt_output.c \
+mt_hash.c
