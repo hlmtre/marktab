@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "mt_string.h"
+#include "mt_pair.h"
 
 typedef struct MtHash
 {
@@ -16,11 +17,13 @@ typedef struct MtHash
 
 MtHash* mt_hash_new();
 
+MtPair* mt_hash_search(MtHash* hash, MtString* key);
+
 void mt_hash_insert(MtHash* hash, MtString* key, void* value);
 
-bool mt_hash_contains_key(MtHash* hash, MtString* key);
+void mt_hash_move_pair(MtHash* hash, MtPair* pair);
 
-void* mt_hash_search(MtHash* hash, MtString* key);
+void mt_hash_traverse(MtHash* hash, bool(*fn)(MtPair*, void*), void* data);
 
 void mt_hash_remove(MtHash* hash, MtString* key);
 

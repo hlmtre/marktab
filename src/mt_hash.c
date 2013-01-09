@@ -3,6 +3,19 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include "mt_tree.h"
+
+// Allocates and initializes the buckets for a hash based on its current size
+#define mt_hash_alloc_and_init_buckets(hash) { \
+    hash->buckets = (MtHashElement *) malloc(sizeof(MtHashElement) * hash->size); \
+    size_t i; \
+    for (i = 0; i < hash->size; ++i) \
+    { \
+      hash->buckets[i].is_tree = false; \
+      hash->buckets[i].data = NULL; \
+    } \
+  }
+
 // An implementation of the murmur hash algorithm
 // http://code.google.com/p/smhasher/wiki/MurmurHash3
 // This is, for the most part, borrowed from the the HKL language
@@ -50,38 +63,73 @@ static size_t Murmur3(const char* key, size_t len)
 
 
 //
-// MtHashObject
+// MtHashElement
 //
 
-typedef struct MtHashObject
+typedef struct MtHashElement
 {
   bool is_tree;
   void* data;
-} MtHashObject;
-
-MtHashObject* mt_hash_object_new()
-{
-  MtHashObject* object = (MtHashObject *) malloc(sizeof(MtHashObject));
-  assert(object != NULL);
-  
-  object->is_tree = false;
-  object->data = NULL;
-
-  return object;
-}
-
-void mt_hash_object_free(MtHash* hash)
-{
-  assert(hash != NULL);
-  free(hash);
-}
-
+} MtHashElement;
 
 //
 // MtHash
 //
 
-MtHash* mt_hash_new()
+static bool
+mt_hash_move(MtPair* pair, void* new_hash)
+{
+  assert(pair != NULL);
+  assert(new_hash != NULL);
+
+  mt_hash_move_pair((MtHash*) new_hash, pair);
+
+  return false;
+}
+
+static void
+mt_hash_double_size(MtHash* hash)
+{
+  assert(hash != NULL);
+
+  // Store old size
+  size_t old_size = hash->size;
+
+  // Double the size
+  hash->size <<= 1;
+  hash->length = 0;
+
+  // Store old buckets
+  MtHashElement* old_buckets = hash->buckets;
+
+  // Create and init new buckets
+  mt_hash_alloc_and_init_buckets(hash);
+
+  // Move the old buckets
+  MtHashElement* element = NULL;
+
+  size_t i;
+  for (i = 0; i < old_size; ++i)
+  {
+    element = &old_buckets[i];
+
+    if (element->is_tree)
+    {
+      // Beware, magic and function pointers...
+      mt_tree_traverse((MtTree*) element->data, mt_hash_move, hash);
+    }
+    else if (element->data)
+    {
+      mt_hash_move((MtPair *) element->data, hash);
+    }
+  }
+
+  // free the old buckets
+  free(old_buckets);
+}
+
+MtHash*
+mt_hash_new()
 {
   MtHash* hash = (MtHash *) malloc(sizeof(MtHash));
   assert(hash != NULL);
@@ -89,48 +137,182 @@ MtHash* mt_hash_new()
   hash->size = 16;
   hash->length = 0;
 
+  // Allocate and initialize the buckets
+  mt_hash_alloc_and_init_buckets(hash);
+
   return hash;
 }
 
-void mt_hash_insert(MtHash* hash, MtString* key, void* value)
+void
+mt_hash_insert(MtHash* hash, MtString* key, void* value)
 {
   assert(hash != NULL);
   assert(key != NULL);
-  assert(value != NULL);
+
+  if (key->hash == 0)
+    key->hash = Murmur3(mt_string_get_utf8(key), mt_string_get_length(key));
+
+  size_t index = key->hash % hash->size;
+
+  MtHashElement* element = &hash->buckets[index];
+  assert(element != NULL);
+
+  // Collision handling
+  if (element->data != NULL)
+  {
+    if (element->is_tree)
+    {
+      // Collision, tree already made
+      mt_tree_insert((MtTree *) element->data, key, value);
+    }
+    else
+    {
+      // First collision, make a tree
+      MtPair* pair = element->data;
+
+      element->data = mt_tree_new();
+      mt_tree_move_pair((MtTree *) element->data, pair);
+
+      mt_tree_insert((MtTree *) element->data, key, value);
+
+      element->is_tree = true;
+    }
+  }
+  // No collision
+  else
+  {
+    element->data = mt_pair_new(key, value);
+
+    ++hash->length;
+
+    if (hash->length >= 0.75 * hash->size)
+      mt_hash_double_size(hash);
+  }
+}
+
+void
+mt_hash_move_pair(MtHash* hash, MtPair* pair)
+{
+  assert(hash != NULL);
+  assert(pair != NULL);
+
+  // Can only be moved from another hash
+  // Had better have a key if that is the case
+  assert(pair->key->hash != 0);
+
 
 }
 
-bool mt_hash_contains_key(MtHash* hash, MtString* key)
+MtPair* mt_hash_search(MtHash* hash, MtString* key)
 {
   assert(hash != NULL);
   assert(key != NULL);
 
-  // TODO: fix
-  return false;
-}
+  if (key->hash == 0)
+    key->hash = Murmur3(mt_string_get_utf8(key), mt_string_get_length(key));
 
-void* mt_hash_search(MtHash* hash, MtString* key)
-{
-  assert(hash != NULL);
-  assert(key != NULL);
+  size_t index = key->hash % hash->size;
 
-  // TODO: fix
+  MtHashElement* element = &hash->buckets[index];
+  assert(element != NULL);
+
+  // Key Collides
+  if (element->data != NULL)
+  {
+    // If it is a tree, search the tree for the key
+    if (element->is_tree)
+    {
+      return mt_tree_search((MtTree*) element->data, key);
+    }
+    else if (mt_string_compare(((MtPair*) element->data)->key, key) == 0)
+    {
+      return (MtPair*) element->data;
+    }
+  }
+
+  // Nothing was found
   return NULL;
 }
 
-void mt_hash_remove(MtHash* hash, MtString* key)
+void
+mt_hash_remove(MtHash* hash, MtString* key)
 {
   assert(hash != NULL);
   assert(key != NULL);
 
+  if (key->hash == 0)
+    key->hash = Murmur3(mt_string_get_utf8(key), mt_string_get_length(key));
+
+  size_t index = key->hash % hash->size;
+
+  MtHashElement* element = &hash->buckets[index];
+  assert(element != NULL);
+
+  if (element->data != NULL)
+  {
+
+    if (element->is_tree)
+    {
+      mt_tree_remove((MtTree*) element->data, key);
+    }
+    else
+    {
+      mt_pair_free((MtPair*) element->data);
+      --hash->length;
+    }
+  }
 }
 
-void mt_hash_clear(MtHash* hash)
+void
+mt_hash_traverse(MtHash* hash, bool(*fn)(MtPair*, void*), void* data)
 {
-  assert(hash != NULL);
+  size_t i;
+  MtHashElement* element = NULL;
+
+  for (i = 0; i < hash->size; ++i)
+  {
+    element = &hash->buckets[i];
+
+    if (element->is_tree)
+      mt_tree_traverse((MtTree*) element->data, fn, data);
+    
+    else if (element->data)
+      fn((MtPair*) element->data, data);
+  }
 }
 
-void mt_hash_free(MtHash* hash)
+void
+mt_hash_clear(MtHash* hash)
 {
   assert(hash != NULL);
+
+  MtHashElement* element = NULL;
+
+  size_t i;
+  for (i = 0; i < hash->size; ++i)
+  {
+    element = &hash->buckets[i];
+
+    if (element->is_tree)
+      mt_tree_free((MtTree*) element->data);
+
+    if (element->data)
+      mt_pair_free((MtPair*) element->data);
+
+    element->is_tree = false;
+    element->data = NULL;
+  }
+
+  hash->length = 0;
+}
+
+void
+mt_hash_free(MtHash* hash)
+{
+  assert(hash != NULL);
+
+  mt_hash_clear(hash);
+
+  free(hash->buckets);
+  free(hash);
 }

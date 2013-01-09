@@ -24,7 +24,7 @@ struct MtTree
 static MtTreeNode*
 mt_tree_node_new(MtString* key, void* value)
 {
-  MtTreeNode* node = (MtTreeNode *) malloc(sizeof(MtTreeNode));
+  MtTreeNode* node = (MtTreeNode*) malloc(sizeof(MtTreeNode));
   assert(node != NULL);
 
   node->pair = mt_pair_new(key, value);
@@ -42,7 +42,7 @@ mt_tree_node_new_from_pair(MtPair* pair)
 {
   assert(pair != NULL);
 
-  MtTreeNode* node = (MtTreeNode *) malloc(sizeof(MtTreeNode));
+  MtTreeNode* node = (MtTreeNode*) malloc(sizeof(MtTreeNode));
 
   node->pair = pair;
 
