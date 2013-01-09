@@ -3,20 +3,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-typedef struct MtTreeNode
-{
-  MtPair* pair;
-  struct MtTreeNode* left;
-  struct MtTreeNode* right;
-  bool is_red;
-
-} MtTreeNode;
-
-struct MtTree
-{
-  struct MtTreeNode* root;
-};
-
 //
 // MtTreeNode
 //
@@ -155,12 +141,15 @@ mt_tree_node_redify_right(MtTreeNode* node)
 }
 
 static MtTreeNode*
-mt_tree_node_insert(MtTreeNode* node, MtString* key, void* value)
+mt_tree_node_insert(MtTree* tree, MtTreeNode* node, MtString* key, void* value)
 {
   assert(key != NULL);
 
   if (node == NULL)
+  {
+    ++tree->size;
     return mt_tree_node_new(key, value);
+  }
 
   if (mt_tree_node_is_red(node->left) && mt_tree_node_is_red(node->right))
     mt_tree_node_flip_color(node);
@@ -168,8 +157,8 @@ mt_tree_node_insert(MtTreeNode* node, MtString* key, void* value)
   int cmp = mt_string_compare(node->pair->key, key);
 
   if (cmp == 0)     node->pair->value = value;
-  else if (cmp < 0) node->left = mt_tree_node_insert(node->left, key, value);
-  else              node->right = mt_tree_node_insert(node->right, key, value);
+  else if (cmp < 0) node->left = mt_tree_node_insert(tree, node->left, key, value);
+  else              node->right = mt_tree_node_insert(tree, node->right, key, value);
 
   if (mt_tree_node_is_red(node->right) && !mt_tree_node_is_red(node->left))
     mt_tree_node_rot_left(node);
@@ -198,10 +187,11 @@ mt_tree_node_fixup(MtTreeNode* node)
 }
 
 static MtTreeNode*
-mt_tree_node_remove_min(MtTreeNode* node)
+mt_tree_node_remove_min(MtTree* tree, MtTreeNode* node)
 {
   if (node->left == NULL)
   {
+    --tree->size;
     mt_tree_node_free(node);
     return NULL;
   }
@@ -209,7 +199,7 @@ mt_tree_node_remove_min(MtTreeNode* node)
   if (!mt_tree_node_is_red(node->left) && !mt_tree_node_is_red(node->left->left))
     node = mt_tree_node_redify_left(node);
 
-  node->left = mt_tree_node_remove_min(node->left);
+  node->left = mt_tree_node_remove_min(tree, node->left);
 
   return mt_tree_node_fixup(node);
 }
@@ -223,7 +213,7 @@ mt_tree_node_find_min(MtTreeNode* node)
   return node;
 }
 
-static MtTreeNode* mt_tree_node_remove(MtTreeNode* node, MtString* key)
+static MtTreeNode* mt_tree_node_remove(MtTree* tree, MtTreeNode* node, MtString* key)
 {
   assert(node != NULL);
   assert(key != NULL);
@@ -235,7 +225,7 @@ static MtTreeNode* mt_tree_node_remove(MtTreeNode* node, MtString* key)
       if (!mt_tree_node_is_red(node->left) && mt_tree_node_is_red(node->left->left))
         node = mt_tree_node_redify_left(node);
 
-      node->left = mt_tree_node_remove(node->left, key);
+      node->left = mt_tree_node_remove(tree, node->left, key);
     }
   }
   else
@@ -245,6 +235,7 @@ static MtTreeNode* mt_tree_node_remove(MtTreeNode* node, MtString* key)
 
     if (mt_string_compare(key, node->pair->key) && (node->right == NULL))
     {
+      --tree->size;
       mt_tree_node_free(node);
       return NULL;
     }
@@ -257,11 +248,11 @@ static MtTreeNode* mt_tree_node_remove(MtTreeNode* node, MtString* key)
       if (mt_string_compare(key, node->pair->key) == 0)
       {
         node->pair->value = mt_tree_node_find_min(node->right)->pair->value;
-        node->right = mt_tree_node_remove_min(node->right);
+        node->right = mt_tree_node_remove_min(tree, node->right);
       }
       else
       {
-        node->right = mt_tree_node_remove(node->right, key);
+        node->right = mt_tree_node_remove(tree, node->right, key);
       }
     }
   }
@@ -351,6 +342,7 @@ mt_tree_new()
   assert(tree != NULL);
 
   tree->root = NULL;
+  tree->size = 0;
 
   return tree;
 }
@@ -382,7 +374,7 @@ mt_tree_insert(MtTree* tree, MtString* key, void* value)
   assert(tree != NULL);
   assert(key != NULL);
 
-  tree->root = mt_tree_node_insert(tree->root, key, value);
+  tree->root = mt_tree_node_insert(tree, tree->root, key, value);
   tree->root->is_red = false;
 }
 
@@ -394,7 +386,7 @@ mt_tree_remove(MtTree* tree, MtString* key)
 
   if (tree->root != NULL)
   {
-    tree->root = mt_tree_node_remove(tree->root, key);
+    tree->root = mt_tree_node_remove(tree, tree->root, key);
 
     if (tree->root != NULL)
     {
@@ -411,6 +403,7 @@ mt_tree_clear(MtTree* tree)
   if (tree->root != NULL)
     mt_tree_node_free(tree->root);
 
+  tree->size = 0;
   tree->root = NULL;
 }
 

@@ -1,10 +1,25 @@
 #ifndef MT_TREE_H
 #define MT_TREE_H
 
+#include <stddef.h>
+
 #include "mt_pair.h"
 
+// A node in the MtTree
+typedef struct MtTreeNode
+{
+  MtPair* pair;
+  struct MtTreeNode* left;
+  struct MtTreeNode* right;
+  bool is_red;
+} MtTreeNode;
+
 // A Red-Black tree
-typedef struct MtTree MtTree;
+typedef struct MtTree
+{
+  MtTreeNode* root;
+  size_t size;
+} MtTree;
 
 MtTree* mt_tree_new();
 
