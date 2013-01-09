@@ -396,7 +396,7 @@ mt_tree_remove(MtTree* tree, MtString* key)
   {
     tree->root = mt_tree_node_remove(tree->root, key);
 
-    if (tree->root != NULL);
+    if (tree->root != NULL)
     {
       tree->root->is_red = false;
     }

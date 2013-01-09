@@ -21,4 +21,6 @@ mtr.c \
 mt_config.c \
 mt_stack.c \
 mt_output.c \
-mt_hash.c
+mt_hash.c \
+mt_pair.c \
+mt_tree.c
