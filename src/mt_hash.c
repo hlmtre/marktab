@@ -76,35 +76,6 @@ void mt_hash_object_free(MtHash* hash)
   free(hash);
 }
 
-//
-// MtHashPair
-//
-
-typedef struct MtHashPair
-{
-  MtString* key;
-  void* value;
-} MtHashPair;
-
-MtHashPair* mt_hash_pair_new(MtString* key, void* value)
-{
-  MtHashPair* pair = (MtHashPair *) malloc(sizeof(MtHashPair));
-  assert(pair != NULL);
-
-  assert(key != NULL);
-  assert(value != NULL);
-
-  pair->key = key;
-  pair->value = value;
-
-  return pair;
-}
-
-void mt_hash_pair_free(MtHashPair* pair)
-{
-  assert(pair != NULL);
-  free(pair);
-}
 
 //
 // MtHash
@@ -117,8 +88,6 @@ MtHash* mt_hash_new()
 
   hash->size = 16;
   hash->length = 0;
-  
-
 
   return hash;
 }
