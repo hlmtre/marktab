@@ -128,6 +128,10 @@ mt_hash_double_size(MtHash* hash)
   free(old_buckets);
 }
 
+//
+// Public
+//
+
 MtHash*
 mt_hash_new()
 {
@@ -202,7 +206,44 @@ mt_hash_move_pair(MtHash* hash, MtPair* pair)
   // Had better have a key if that is the case
   assert(pair->key->hash != 0);
 
+  size_t index = pair->key->hash % hash->size;
 
+  MtHashElement* element = &hash->buckets[index];
+  assert(element != NULL);
+
+  // Collision
+  if (element->data != NULL)
+  {
+    // Standard Collision
+    if (element->is_tree)
+    {
+      mt_tree_move_pair((MtTree*) element->data, pair);
+    }
+    // First Collision
+    else
+    {
+      // Have to handle both pairs being moved into the tree
+      MtPair* old_pair = element->data;
+
+      element->data = mt_tree_new();
+
+      mt_tree_move_pair((MtTree*) element->data, pair);
+      mt_tree_move_pair((MtTree*) element->data, old_pair);
+
+      element->is_tree = true;
+    }
+  }
+  // No Collision
+  else
+  {
+    element->data = pair;
+
+    ++hash->length;
+
+    // Grow the table if is 75% or more full
+    if (hash->length >= 0.75 * hash->size)
+      mt_hash_double_size(hash);
+  }
 }
 
 MtPair* mt_hash_search(MtHash* hash, MtString* key)
