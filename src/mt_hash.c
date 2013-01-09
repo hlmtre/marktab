@@ -172,6 +172,8 @@ mt_hash_insert(MtHash* hash, MtString* key, void* value)
 
       element->data = mt_tree_new();
       mt_tree_move_pair((MtTree *) element->data, pair);
+      
+      ++hash->length;
 
       mt_tree_insert((MtTree *) element->data, key, value);
 
@@ -253,7 +255,17 @@ mt_hash_remove(MtHash* hash, MtString* key)
 
     if (element->is_tree)
     {
-      mt_tree_remove((MtTree*) element->data, key);
+      MtTree* tree = element->data;
+
+      // Save the size before attempting to remove element from tree
+      size_t old_size = tree->size;
+
+      mt_tree_remove(tree, key);
+
+      // Decrement the size of the hash by the difference in the
+      // old and new sizes of the tree. This shouldn't ever be more than 1.
+      assert((old_size - tree->size) <= 1);
+      hash->length -= old_size - tree->size;
     }
     else
     {
